@@ -13,7 +13,6 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
     async (transactionManager) => {
       console.log("req.body", req.body);
 
-
       return await productReviewService
         .withTransaction(transactionManager)
         .create(req.body);
@@ -31,26 +30,28 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
 
   const productReview = await manager.transaction(
     async (transactionManager) => {
-      return productReviewService
-        .withTransaction(transactionManager)
-        .find()
+      return productReviewService.withTransaction(transactionManager).find(
+        {},
+        {
+          relations: ["customer"],
+        }
+      );
     }
   );
 
   res.status(200).json({
     productReview,
   });
-
 }
 
-export async function getAllProducts(){
+export async function getAllProducts() {
   try {
-    const response = await fetch(`http://localhost:9000/store/reviews`)
-    const res = await response.json()
-    console.log({res});
-    
-    return res
+    const response = await fetch(`http://localhost:9000/store/reviews`);
+    const res = await response.json();
+    console.log({ res });
+
+    return res;
   } catch (error) {
-    console.log({error})
+    console.log({ error });
   }
 }

@@ -50,7 +50,8 @@ const page = (props: Props) => {
         <Table.Header>
           <Table.Row>
             {/* {columns.map(col =><Table.HeaderCell>{col}</Table.HeaderCell> )} */}
-            <Table.HeaderCell>id</Table.HeaderCell>
+            <Table.HeaderCell>Name</Table.HeaderCell>
+            <Table.HeaderCell>Review Id</Table.HeaderCell>
             <Table.HeaderCell>Title</Table.HeaderCell>
             <Table.HeaderCell>Description</Table.HeaderCell>
             <Table.HeaderCell>Rating</Table.HeaderCell>
@@ -64,6 +65,9 @@ const page = (props: Props) => {
                 key={review?.id}
                 className="[&_td:last-child]:w-[1%] [&_td:last-child]:whitespace-nowrap"
               >
+                <Table.Cell>
+                  {review?.customer?.first_name} {review?.customer?.last_name}
+                </Table.Cell>
                 <Table.Cell>{review?.id}</Table.Cell>
                 <Table.Cell>{review?.title}</Table.Cell>
                 <Table.Cell>{review?.content}</Table.Cell>

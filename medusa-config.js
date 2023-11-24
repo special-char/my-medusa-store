@@ -35,7 +35,8 @@ const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:9000";
 const ADMIN_URL = process.env.ADMIN_URL || "http://localhost:7001";
-const STORE_URL = process.env.STORE_URL || "http://localhost:3000";
+// const STORE_URL = process.env.STORE_URL || "http://localhost:3000";
+const STORE_URL = "http://localhost:9001";
 
 const GoogleClientId = process.env.GOOGLE_CLIENT_ID || "";
 const GoogleClientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
