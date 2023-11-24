@@ -3,21 +3,25 @@ import ProductReviewService from "src/services/product-review";
 import { EntityManager } from "typeorm";
 
 export async function GET(req: MedusaRequest, res: MedusaResponse) {
-  const productReviewService: ProductReviewService = req.scope.resolve(
-    "productReviewService"
-  );
+  try {
+    const productReviewService: ProductReviewService = req.scope.resolve(
+      "productReviewService"
+    );
 
-  const manager: EntityManager = req.scope.resolve("manager");
+    const manager: EntityManager = req.scope.resolve("manager");
 
-  const productReview = await manager.transaction(
-    async (transactionManager) => {
-      return await productReviewService
-        .withTransaction(transactionManager)
-        .retrieve(req.params.productId);
-    }
-  );
+    const productReview = await manager.transaction(
+      async (transactionManager) => {
+        return await productReviewService
+          .withTransaction(transactionManager)
+          .retrieve(req.params.productId);
+      }
+    );
 
-  res.status(200).json({
-    productReview,
-  });
+    res.status(200).json({
+      productReview,
+    });
+  } catch (error) {
+    res.status(500).json(error);
+  }
 }
