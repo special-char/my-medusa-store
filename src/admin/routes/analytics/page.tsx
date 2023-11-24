@@ -53,10 +53,10 @@ const AnalyticsPage = () => {
 
 
   const monthlyChartData = new Array(31).fill(0);
-  const yearDecade = new Array(10).fill(0).map(( _ , index) => { Number(dateNow.split(" ")[3]) - index });
+  const currentYear = Number(dateNow.split(" ")[3]) ;
+  const yearDecade = new Array(10).fill(0).map(( _ , index) => { return currentYear - index });
   const yearlyChartData = new Array(yearDecade.length).fill(0);
   
-  console.log("decade  ====================== //////////////////////// ", yearDecade );
 
   if (!!orders) {
 
@@ -65,6 +65,13 @@ const AnalyticsPage = () => {
       return dayString.getMonth() == month
     })
 
+
+    console.log("month data ***************" , monthlyData);
+    console.log("monthhhh" , dayString.getMonth(
+      
+    ));
+    
+    
 
     for (let index = 0; index < monthlyData.length; index++) {
       const element = monthlyData[index];
@@ -84,7 +91,11 @@ const AnalyticsPage = () => {
 
     }
 
+    console.log("monthly chart data  ///////////////////////// ", monthlyChartData);
+
+
   }
+
 
   if (!!orders) {
     for (let index = 0; index < orders?.orders?.length; index++) {
@@ -104,14 +115,13 @@ const AnalyticsPage = () => {
 
 
     }
+    console.log("yearly chart data /*/*/*/*/*/*/*/*/*/* " , yearlyChartData);
 
+    
     
   }
   
   
-  console.log("yearly chart data /*/*/*/*/*/*/*/*/*/* " , yearlyChartData);
-  console.log("monthly data  ///////////////////////// ", monthlyChartData);
-  console.log("decade  ///////////////////////// ", yearDecade);
 
 
 
