@@ -41,6 +41,8 @@
     "cors": "^2.8.5",
     "dotenv": "16.0.3",
     "express": "^4.17.2",
+    "highcharts": "^11.2.0",
+    "highcharts-react-official": "^3.2.1",
     "medusa-core-utils": "^1.2.0",
     "medusa-file-s3": "^1.4.0",
     "medusa-fulfillment-manual": "^1.1.38",
