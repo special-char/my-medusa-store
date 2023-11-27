@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react'
 import Highcharts from "highcharts";
 import HighchartsReact from "highcharts-react-official";
 
-const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidXNyXzAxSEQ4QTFOMEZXNFlQMTJKUUJNNlIyR0pKIiwiZG9tYWluIjoiYWRtaW4iLCJpYXQiOjE3MDA3OTkxODQsImV4cCI6MTcwMDg4NTU4NH0.xo3N3F2cwxMezRsz1TD23b4vAiicFmubtLMFFGfL140"
+const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoidXNyXzAxSEQ4QTFOMEZXNFlQMTJKUUJNNlIyR0pKIiwiZG9tYWluIjoiYWRtaW4iLCJpYXQiOjE3MDEwNjE0NTgsImV4cCI6MTcwMTE0Nzg1OH0.3vk_Nhe4UgPjno4sNkWFV0rlRff5S2m1MkhHEsbQZgY"
 import { useAdminProducts } from "medusa-react"
 
 
@@ -67,9 +67,7 @@ const AnalyticsPage = () => {
 
 
     console.log("month data ***************" , monthlyData);
-    console.log("monthhhh" , dayString.getMonth(
-      
-    ));
+    console.log("monthhhh" , dayString.getMonth( ));
     
     
 
