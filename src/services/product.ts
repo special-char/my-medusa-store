@@ -6,7 +6,8 @@ import {
 class ProductService extends MedusaProductService {
   // The default life time for a core service is SINGLETON
   static LIFE_TIME = Lifetime.SCOPED
-    
+
+
   // ...
 }
 

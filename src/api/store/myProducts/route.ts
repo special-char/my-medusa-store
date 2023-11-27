@@ -65,7 +65,7 @@ export async function GET(req: MedusaRequest, res: MedusaResponse) {
           // Using the ANY operator to check if both category IDs are in the array
           // $all: ['pcat_01HDGAWHWEHNWDBMS3K0SSJ0RY', 'pcat_01HDGAQ2W6Q0S6VCERXM4BQW91'],
         },
-        // ...(order && { order }),
+        ...(order && { order }),
         
       },
     });

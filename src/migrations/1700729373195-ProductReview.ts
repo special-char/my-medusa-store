@@ -17,6 +17,7 @@ export class ProductReview1698380620114 implements MigrationInterface {
     );`
     );
     await queryRunner.createPrimaryKey("product_review", ["id"]);
+    
     await queryRunner.createForeignKey(
       "product_review",
       new TableForeignKey({
