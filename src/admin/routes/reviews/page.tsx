@@ -2,7 +2,6 @@
 import { RouteConfig } from "@medusajs/admin";
 import { useEffect, useState, useCallback } from "react";
 import { Star } from "@medusajs/icons";
-import { Table, Container, Heading } from "@medusajs/ui";
 import {
   Row,
   createColumnHelper,
@@ -20,14 +19,13 @@ type Props = {};
 export async function deleteProduct(id: string) {
   try {
     const response = await fetch(
-      `${process.env.BACKEND_URL}/store/reviews/${id}`,
+      `${process.env.MEDUSA_BACKEND_URL}/store/reviews/${id}`,
       {
         method: "DELETE",
         headers: {},
       }
     );
     const res = await response.json();
-    alert("delete success");
     return res;
   } catch (error) {
     console.log(error);
