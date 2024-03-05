@@ -150,6 +150,26 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentService {
     fulfillment: Fulfillment
   ): Promise<Record<string, unknown>> {
     try {
+      // console.log({
+      //   shipments: [
+      //     {
+      //       order: "INSERT ORDER NUMBER HERE",
+      //       waybill: "",
+      //       add: "TEST",
+      //       name: "TEST",
+      //       phone: "+9988776655",
+      //       pin: "500081",
+      //       payment_mode: "Pickup/COD",
+      //       cod_amount: "COD AMOUNT IN CASE OF COD",
+      //       shipping_mode: "Express/Surface",
+      //       products_desc: "SKU1, SKU2, SKU3",
+      //       quantity: "INSERT QUNATITY HERE",
+      //     },
+      //   ],
+      //   pickup_location: {
+      //     name: "INSERT WAREHOUSE/PICKUP LOCATION NAME HERE",
+      //   },
+      // });
       const locationDetails = await this.stockLocationService_.retrieve(
         fulfillment.location_id,
         {
@@ -162,51 +182,66 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentService {
         }),
       });
       order.payments[0].provider_id;
-
       const shipmentData = {
-        shipments: items.map((x) => ({
-          name: `${order?.shipping_address?.first_name} ${order?.shipping_address?.last_name}`,
-          add:
-            `${order?.shipping_address?.address_1} ${order?.shipping_address?.address_2}` ||
-            "8 ganeshkunj",
-          pin: order?.shipping_address?.postal_code,
-          city: order?.shipping_address?.city || "ahmedabad",
-          state: order?.shipping_address?.province,
-          country: order?.shipping_address?.country || "India",
-          phone: order?.shipping_address?.phone,
-          order: order?.id,
-          payment_mode:
-            order.payments[0].provider_id === "cod" ? "COD" : "Prepaid",
-          return_pin: locationDetails.address.postal_code,
-          return_city: locationDetails.address.city,
-          return_phone: locationDetails.address.phone,
-          return_add: `${locationDetails.address.address_1} ${locationDetails.address.address_2}`,
-          return_state: locationDetails.address.province,
-          return_country: locationDetails.address.country_code,
-          products_desc: x.description,
-          hsn_code: x.variant.hs_code,
-          cod_amount: order.total,
-          order_date: order.created_at,
-          total_amount: order.total,
-          seller_add: `${locationDetails.address.address_1} ${locationDetails.address.address_2}`,
-          seller_name: locationDetails.address.company,
-          seller_inv: "",
-          quantity: x.quantity,
-          waybill: "",
-          shipment_width: x.variant.width,
-          shipment_height: x.variant.height,
-          weight: x.variant.weight,
-          seller_gst_tin: "",
-          shipping_mode: "Express",
-          address_type: "home",
-        })),
+        shipments:[
+          {
+            order: order.id,
+            waybill: "",
+            add: order.billing_address,
+            name: `${order?.shipping_address?.first_name} ${order?.shipping_address?.last_name}`,
+            phone: order?.shipping_address?.phone,
+            pin: order?.shipping_address?.postal_code,
+            payment_mode: order.payments[0].provider_id === "cod" ? "COD" : "Prepaid",
+            cod_amount: order.total,
+            shipping_mode: "Express",
+            products_desc: items.map(x=>x.variant.sku).filter(x=>x).join(","),
+            quantity: items.map(x=>x.quantity).reduce((p,c)=>p+c,0),
+          },
+        ]
+        // shipments: items.map((x) => ({
+        //   name: `${order?.shipping_address?.first_name} ${order?.shipping_address?.last_name}`,
+        //   add:
+        //     `${order?.shipping_address?.address_1} ${order?.shipping_address?.address_2}` ||
+        //     "8 ganeshkunj",
+        //   pin: order?.shipping_address?.postal_code,
+        //   city: order?.shipping_address?.city || "ahmedabad",
+        //   product_desc:"",
+        //   state: order?.shipping_address?.province,
+        //   country: order?.shipping_address?.country || "India",
+        //   phone: order?.shipping_address?.phone,
+        //   order: order?.id,
+        //   payment_mode:
+        //     order.payments[0].provider_id === "cod" ? "COD" : "Prepaid",
+        //   return_pin: locationDetails.address.postal_code,
+        //   return_city: locationDetails.address.city,
+        //   return_phone: locationDetails.address.phone,
+        //   return_add: `${locationDetails.address.address_1} ${locationDetails.address.address_2}`,
+        //   return_state: locationDetails.address.province,
+        //   return_country: locationDetails.address.country_code,
+        //   products_desc: x.description,
+        //   hsn_code: x.variant.hs_code,
+        //   cod_amount: order.total,
+        //   order_date: order.created_at,
+        //   total_amount: order.total,
+        //   seller_add: `${locationDetails.address.address_1} ${locationDetails.address.address_2}`,
+        //   seller_name: locationDetails.address.company,
+        //   seller_inv: "",
+        //   quantity: x.quantity,
+        //   waybill: "",
+        //   shipment_width: x.variant.width,
+        //   shipment_height: x.variant.height,
+        //   weight: x.variant.weight,
+        //   seller_gst_tin: "",
+        //   shipping_mode: "Express",
+        //   address_type: "home",
+        // })),
         pickup_location: {
           name: locationDetails.name,
           add: `${locationDetails.address.address_1} ${locationDetails.address.address_2}`,
           city: locationDetails.address.city,
           pin_code: locationDetails.address.postal_code,
           country: locationDetails.address.country_code,
-          phone: locationDetails.address.phone || 9788888888,
+          phone: locationDetails.address.phone || 9986993600,
         },
       };
 
