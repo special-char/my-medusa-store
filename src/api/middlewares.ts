@@ -3,8 +3,8 @@ import cors from "cors";
 import bodyParser from "body-parser";
 
 const adminCorsOptions = {
-	origin: "*",
-	credentials: true,
+  origin: "*",
+  credentials: true,
 };
 
 export const config: MiddlewaresConfig = {
@@ -32,6 +32,18 @@ export const config: MiddlewaresConfig = {
     {
       method: ["POST", "OPTIONS"],
       matcher: "/razorpay/*",
+      bodyParser: false,
+      middlewares: [
+        cors({
+          origin: /.*.phonepe.com\/apis/gm,
+          methods: "POST,OPTIONS",
+        }),
+        bodyParser.json({ type: "application/json" }),
+      ],
+    },
+    {
+      method: ["POST", "OPTIONS"],
+      matcher: "/store/eway/*",
       bodyParser: false,
       middlewares: [
         cors({
