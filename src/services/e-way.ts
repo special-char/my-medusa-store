@@ -1,403 +1,469 @@
 import {
-  AbstractPaymentProcessor,
-  CartService,
-  isPaymentProcessorError,
-  PaymentProcessorContext,
-  PaymentProcessorSessionResponse,
-  PaymentProviderService,
-  PaymentSessionStatus,
+	AbstractPaymentProcessor,
+	isPaymentProcessorError,
+	Logger,
+	PaymentProcessorContext,
+	PaymentProcessorError,
+	PaymentProcessorSessionResponse,
+	PaymentSessionStatus,
 } from "@medusajs/medusa";
 import axios, { AxiosInstance } from "axios";
+// import rapid from "eway-rapid";
 import { MedusaError } from "medusa-core-utils";
 import { EOL } from "os";
 
-const rapid = require("eway-rapid");
+type EWayOptions = {
+	baseUrl?: string;
+	key: string;
+	password: string;
+	endpoint: string;
+	redirectUrl: string;
+	cancelUrl?: string;
+};
 
-interface PaymentProcessorError {
-  error: string;
-  code?: string;
-  detail?: any;
-}
-
-interface EWayOptions {}
+type InitiatePaymentRequestBody = {
+	Customer?: {
+		Reference?: string;
+		Title?: string;
+		FirstName: string;
+		LastName: string;
+		CompanyName?: string;
+		JobDescription?: string;
+		Street1?: string;
+		Street2?: string;
+		City?: string;
+		State?: string;
+		PostalCode?: string;
+		Country?: string;
+		Phone?: string;
+		Mobile?: string;
+		Email?: string;
+	};
+	ShippingAddress?: {
+		ShippingMethod: string;
+		FirstName: string;
+		LastName: string;
+		Street1: string;
+		Street2: string;
+		City: string;
+		State: string;
+		Country: string;
+		PostalCode: string;
+		Phone: string;
+	};
+	Payment: {
+		TotalAmount: number;
+		InvoiceNumber?: string;
+		InvoiceDescription?: string;
+		InvoiceReference?: string;
+		CurrencyCode?: string;
+	};
+	RedirectUrl: string;
+	CancelUrl: string;
+	TransactionType: "Purchase";
+	LogoUrl?: string;
+	HeaderText?: string;
+	Language?: string;
+	Capture: boolean;
+	CustomerReadOnly?: boolean;
+	CustomView?: string;
+	VerifyCustomerPhone?: boolean;
+	VerifyCustomerEmail?: boolean;
+};
 
 class EWayService extends AbstractPaymentProcessor {
-  static identifier = "e-way";
-  protected cartService_: CartService;
-  private client: AxiosInstance;
+	static identifier = "e-way";
 
-  protected paymentProviderService: PaymentProviderService;
+	protected readonly options_: EWayOptions;
+	protected logger: Logger;
+	protected client_: AxiosInstance;
 
-  constructor(container, options: EWayOptions) {
-    super(container);
-    console.log({ container, options });
+	protected constructor(container: { logger: Logger }, options: EWayOptions) {
+		super(container as any);
 
-    this.paymentProviderService = container.paymentProviderService;
+		this.logger = container.logger;
+		this.options_ = {
+			baseUrl:
+				process.env.E_WAY_API_URL || "https://api.sandbox.ewaypayments.com",
+			key: process.env.E_WAY_API_KEY,
+			password: process.env.E_WAY_PASSWORD,
+			endpoint: process.env.E_WAY_ENDPOINT,
+			redirectUrl: process.env.E_WAY_REDIRECT_URL,
+			cancelUrl: process.env.E_WAY_CANCEL_URL,
+		};
 
-    this.client = axios.create({
-      baseURL: "https://api.sandbox.ewaypayments.com",
-      headers: {
-        // Authorization: `Basic Z2lmdG11X2Q2aDJzOTpWemtSVDkzZmZ0YmFEdG9UU0dXdkBSJFleJkteRSNeWQ==`,
-        // Authorization: `Basic ${Buffer.from(`${options.username}:${options.password}`).toString("base64")}`,
-        "Content-Type": "application/json",
-        // Accept: "application/json",
-      },
-    });
-  }
+		// this.client_ = rapid.createClient(
+		// 	this.options_.key,
+		// 	this.options_.password,
+		// 	this.options_.endpoint
+		// );
 
-  protected buildError(
-    message: string,
-    e: PaymentProcessorError | Error | any
-  ): PaymentProcessorError {
-    return {
-      error: message,
-      code: "code" in e ? e.code : "",
-      detail: isPaymentProcessorError(e)
-        ? `${e.error}${EOL}${e.detail ?? ""}`
-        : "detail" in e
-        ? e.detail
-        : e.message ?? "",
-    };
-  }
+		this.client_ = axios.create({
+			baseURL: this.options_.baseUrl,
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Basic ${btoa(
+					`${this.options_.key}:${this.options_.password}`
+				)}`,
+			},
+			timeout: 30000, // Timeout after 30 seconds
+		});
+	}
 
-  async initiatePayment(
-    context: PaymentProcessorContext
-  ): Promise<PaymentProcessorError | PaymentProcessorSessionResponse> {
-    try {
-      const { amount, email, currency_code, resource_id } = context;
+	// Centralized Error Handling with Structured Logging
+	protected buildError(
+		message: string,
+		e: any | PaymentProcessorError | Error
+	): PaymentProcessorError {
+		// Log the error for debugging and tracking
+		this.logger.error(`Error: ${message}`, { error: e });
 
-      console.log("Extracted context data:", {
-        email,
-        amount,
-        currency_code,
-        resource_id,
-      });
+		// Handle case where the error is a PaymentProcessorError
+		if (isPaymentProcessorError(e)) {
+			return {
+				error: message,
+				code: e?.code ?? "payment_processor_error",
+				detail: `${e?.error}${EOL}${e?.detail ?? ""}`,
+			};
+		}
 
-      const body = {
-        Payment: {
-          TotalAmount: amount,
-        },
-        RedirectUrl: "https://gold-and-gems.vercel.app/store/diamonds",
-        CancelUrl: "https://gold-and-gems.vercel.app/store/diamonds",
-        Method: "ProcessPayment",
-        TransactionType: "Purchase",
-      };
-      console.log({ body });
+		// Handle case where the error is a Stripe.StripeRawError
+		if ("type" in e && "message" in e) {
+			return {
+				error: message,
+				code: e?.code ?? "e-way error",
+				detail: e?.message ?? "An error occurred with e way",
+			};
+		}
 
-      const key =
-        "A1001CecvcbT5xvDM4aI56gVI7wP4IGGNKBDr3BN19Ls9F5XDSQmOdrUxLh2giiCvY/evk";
-      const password = "jKitQDgK";
-      const endpoint = "sandbox";
-      // Create the eWAY Client
-      const client = rapid.createClient(key, password, endpoint);
-      const res = await client.createTransaction(
-        rapid.Enum.Method.RESPONSIVE_SHARED,
-        body
-      );
-      console.log({ res });
-      const body2 = await this.createInitiateData(context);
-      console.log({ body2 });
+		// Handle case where the error is a generic Error
+		if (e instanceof Error) {
+			return {
+				error: message,
+				code: "unknown_error",
+				detail: e?.message ?? "An unexpected error occurred",
+			};
+		}
 
-      const response = await this.client.post("/orders", body);
+		// Default case for unknown types of error
+		return {
+			error: message,
+			code: "unexpected_error",
+			detail: "An unexpected error occurred",
+		};
+	}
 
-      return {
-        session_data: {
-          id: response.data.id,
-          order_id: response.data.id,
-        },
-      };
-    } catch (error) {
-      console.error("Error in initiatePayment:", error);
-      console.dir("errorrr", error?.response?.data?.error_messages);
-      return this.buildError(
-        "An error occurred while initiating the payment. ",
-        error
-      );
-    }
-  }
+	// Helper function to fetch payment info and handle errors centrally
+	private async fetchPaymentInfo(paymentSessionData: Record<string, unknown>) {
+		const accessCode =
+			(paymentSessionData?.AccessCode as string) ||
+			(paymentSessionData?.accessCode as string);
 
-  async capturePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<Record<string, unknown> | PaymentProcessorError> {
-    console.log("capture payment", paymentSessionData);
+		if (!accessCode) {
+			throw new MedusaError(
+				MedusaError.Types.UNEXPECTED_STATE,
+				"AccessCode not found for payment"
+			);
+		}
 
-    const paymentId = paymentSessionData.id;
+		console.log({ accessCode });
 
-    // const captureData = this.client.catch(paymentId);
+		try {
+			const response = await this.client_.get(`/Transaction/${accessCode}`);
+			return response.data;
+		} catch (error) {
+			throw this.buildError("Error fetching payment information", error);
+		}
+	}
 
-    return {
-      id: paymentId,
-      // ...captureData,
-    };
-  }
+	// Creates payment page and logs relevant details
+	protected async createPaymentSharedPage(context: PaymentProcessorContext) {
+		try {
+			const { email, customer, amount, resource_id, currency_code } = context;
 
-  async authorizePayment(
-    paymentSessionData: Record<string, unknown>,
-    context: Record<string, unknown>
-  ): Promise<
-    | PaymentProcessorError
-    | {
-        status: PaymentSessionStatus;
-        data: Record<string, unknown>;
-      }
-  > {
-    console.log("Authorize payment", context, paymentSessionData);
+			const response = await this.client_.post("/AccessCodesShared", {
+				...(customer
+					? {
+							Customer: {
+								FirstName: customer.first_name,
+								LastName: customer.last_name,
+								Email: email,
+								Reference: customer.id,
+							},
+					  }
+					: {}),
+				Payment: {
+					InvoiceReference: resource_id,
+					TotalAmount: amount,
+					CurrencyCode: currency_code.toUpperCase(),
+				},
+				RedirectUrl: this.options_.redirectUrl,
+				CancelUrl: this.options_.cancelUrl || this.options_.redirectUrl,
+				Language: "EN",
+				TransactionType: "Purchase",
+				Capture: true,
+			} as InitiatePaymentRequestBody);
 
-    try {
-      // await this.client.authorize(paymentSessionData.id);
+			if (response.status === 200) {
+				const redirectURL = response.data.SharedPaymentUrl;
+				const accessCode = response.data.AccessCode;
+				return {
+					redirectURL,
+					accessCode,
+					resource_id,
+					amount,
+					currency_code: currency_code.toUpperCase(),
+					...response.data,
+				};
+			} else {
+				throw this.buildError(
+					"Error creating payment shared page",
+					response.data
+				);
+			}
+		} catch (error) {
+			return this.buildError("Error creating payment shared page", error.data);
+		}
+	}
 
-      return {
-        status: PaymentSessionStatus.AUTHORIZED,
-        data: {
-          id: paymentSessionData.id,
-        },
-      };
-    } catch (e) {
-      return {
-        error: e.message,
-      };
-    }
-  }
+	// Helper function to fetch payment info and handle errors centrally
+	// private async fetchPaymentInfo(paymentSessionData: Record<string, unknown>) {
+	// 	const accessCode =
+	// 		(paymentSessionData?.attributes as any)?.AccessCode ||
+	// 		paymentSessionData?.accessCode;
+	// 	if (!accessCode) {
+	// 		throw new MedusaError(
+	// 			MedusaError.Types.UNEXPECTED_STATE,
+	// 			"AccessCode not found for payment"
+	// 		);
+	// 	}
 
-  async deletePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<Record<string, unknown> | PaymentProcessorError> {
-    console.log("delete payment", paymentSessionData);
+	// 	try {
+	// 		const response = await this.client_.queryTransaction(accessCode);
+	// 		return response;
+	// 	} catch (error) {
+	// 		throw this.buildError("Error fetching payment information", error);
+	// 	}
+	// }
 
-    const paymentId = paymentSessionData.id;
+	// Creates payment page and logs relevant details
+	// protected async createPaymentSharedPage(
+	// 	context: PaymentProcessorContext
+	// ): Promise<PaymentProcessorSessionResponse["session_data"]> {
+	// 	try {
+	// 		const { email, customer, amount, resource_id, currency_code } = context;
 
-    // this.client.delete(paymentId);
+	// 		const response = await this.client_.createTransaction(
+	// 			rapid.Enum.Method.RESPONSIVE_SHARED,
+	// 			{
+	// 				...(customer
+	// 					? {
+	// 							Customer: {
+	// 								FirstName: customer.first_name,
+	// 								LastName: customer.last_name,
+	// 								Email: email,
+	// 								Reference: customer.id,
+	// 							},
+	// 					  }
+	// 					: {}),
+	// 				Payment: {
+	// 					InvoiceReference: resource_id,
+	// 					TotalAmount: amount,
+	// 					CurrencyCode: currency_code.toUpperCase(),
+	// 				},
+	// 				RedirectUrl: this.options_.redirectUrl,
+	// 				CancelUrl: this.options_.cancelUrl || this.options_.redirectUrl,
+	// 				Language: "EN",
+	// 				TransactionType: "Purchase",
+	// 				Capture: true,
+	// 			} as InitiatePaymentRequestBody
+	// 		);
 
-    return {};
-  }
+	// 		console.dir({ response }, { depth: null });
 
-  async cancelPayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<Record<string, unknown> | PaymentProcessorError> {
-    console.log("cancel paym,ent", paymentSessionData);
+	// 		if (response.getErrors().length === 0) {
+	// 			const redirectURL = response.get("SharedPaymentUrl");
+	// 			const accessCode = response.get("AccessCode");
+	// 			return {
+	// 				redirectURL,
+	// 				accessCode,
+	// 				resource_id,
+	// 				amount,
+	// 				currency_code: currency_code.toUpperCase(),
+	// 				...response,
+	// 			};
+	// 		} else {
+	// 			throw this.buildError("Error creating payment shared page", response);
+	// 		}
+	// 	} catch (error) {
+	// 		throw this.buildError("Error creating payment shared page", error);
+	// 	}
+	// }
 
-    const paymentId = paymentSessionData.id;
+	// Main flow functions
 
-    // const cancelData = this.client.cancel(paymentId);
+	// Initiate payment
+	async initiatePayment(
+		context: PaymentProcessorContext
+	): Promise<PaymentProcessorError | PaymentProcessorSessionResponse> {
+		try {
+			const response = await this.createPaymentSharedPage(context);
+			return {
+				session_data: response,
+			};
+		} catch (error) {
+			throw this.buildError("Error initiating payment", error);
+		}
+	}
 
-    return {
-      id: paymentId,
-      // ...cancelData,
-    };
-  }
+	// Authorize payment
+	async authorizePayment(paymentSessionData: Record<string, unknown>): Promise<
+		| PaymentProcessorError
+		| {
+				status: PaymentSessionStatus;
+				data: PaymentProcessorSessionResponse["session_data"];
+		  }
+	> {
+		try {
+			console.dir({ paymentSessionData }, { depth: null });
 
-  async refundPayment(
-    paymentSessionData: Record<string, unknown>,
-    refundAmount: number
-  ): Promise<Record<string, unknown> | PaymentProcessorError> {
-    console.log("refund payment", refundAmount, paymentSessionData);
+			const response = await this.fetchPaymentInfo(paymentSessionData);
 
-    const paymentId = paymentSessionData.id;
+			console.dir({ response }, { depth: null });
 
-    // const refundData = this.client.refund(paymentId, refundAmount);
+			return {
+				status: response?.Transactions?.[0]?.TransactionStatus
+					? PaymentSessionStatus.AUTHORIZED
+					: PaymentSessionStatus.ERROR,
+				data: { ...paymentSessionData, ...response },
+			};
+		} catch (error) {
+			return this.buildError("Error authorizing payment", error);
+		}
+	}
 
-    return {
-      id: paymentId,
-      // ...refundData,
-    };
-  }
+	// Capture payment
+	async capturePayment(
+		paymentSessionData: Record<string, unknown>
+	): Promise<
+		PaymentProcessorError | PaymentProcessorSessionResponse["session_data"]
+	> {
+		return paymentSessionData; // Simplified, adjust for actual business logic
+	}
 
-  async getPaymentStatus(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<PaymentSessionStatus> {
-    console.log("getpaymentstatus", paymentSessionData);
+	// Get payment status
+	async getPaymentStatus(
+		paymentSessionData: Record<string, unknown>
+	): Promise<PaymentSessionStatus> {
+		try {
+			const response = await this.fetchPaymentInfo(paymentSessionData);
+			if (response?.attributes?.Transactions?.length) {
+				return response?.attributes?.Transactions?.[0].TransactionStatus
+					? PaymentSessionStatus.AUTHORIZED
+					: PaymentSessionStatus.ERROR;
+			} else {
+				return PaymentSessionStatus.PENDING;
+			}
+		} catch (error) {
+			throw this.buildError("Error getting payment status", error);
+		}
+	}
 
-    const paymentId = paymentSessionData.id;
+	// Retrieve payment
+	async retrievePayment(
+		paymentSessionData: Record<string, unknown>
+	): Promise<
+		PaymentProcessorError | PaymentProcessorSessionResponse["session_data"]
+	> {
+		try {
+			const accessCode = paymentSessionData.accessCode;
+			if (!accessCode) {
+				throw new MedusaError(
+					MedusaError.Types.UNEXPECTED_STATE,
+					"Access code is missing"
+				);
+			}
+			const response = await this.fetchPaymentInfo(paymentSessionData);
+			return { ...paymentSessionData, ...response };
+		} catch (error) {
+			throw this.buildError("Error retrieving payment", error);
+		}
+	}
 
-    // return (await this.client.getStatus(paymentId)) as PaymentSessionStatus;
-    return null;
-  }
+	async updatePayment(
+		context: PaymentProcessorContext
+	): Promise<PaymentProcessorError | PaymentProcessorSessionResponse | void> {
+		// const response = await this.createPaymentSharedPage(context);
+		return {
+			session_data: context.paymentSessionData,
+		};
+	}
 
-  async retrievePayment(
-    paymentSessionData: Record<string, unknown>
-  ): Promise<
-    PaymentProcessorError | PaymentProcessorSessionResponse["session_data"]
-  > {
-    console.log("retrieve payment", paymentSessionData);
+	// Update payment - Simplified version
+	async updatePaymentData(
+		sessionId: string,
+		data: Record<string, unknown>
+	): Promise<
+		PaymentProcessorError | PaymentProcessorSessionResponse["session_data"]
+	> {
+		if (data.amount || data.currency) {
+			throw new MedusaError(
+				MedusaError.Types.INVALID_DATA,
+				"Cannot update amount, use updatePayment instead"
+			);
+		}
+		return data; // Stub return, replace with actual logic
+	}
 
-    console.debug(
-      "retrievePayment called with paymentSessionData:",
-      paymentSessionData
-    );
-    try {
-      const paymentId = paymentSessionData.id;
-      console.log({ paymentId });
-      // ...
-      // return await this.client.retrieve(paymentId);
-    } catch (e) {
-      return this.buildError("An error occurred in retrievePayment", e);
-    }
-  }
+	// Cancel payment
+	async cancelPayment(
+		paymentSessionData: Record<string, unknown>
+	): Promise<
+		PaymentProcessorError | PaymentProcessorSessionResponse["session_data"]
+	> {
+		try {
+			const response = await this.fetchPaymentInfo(paymentSessionData);
+			if (response?.attributes?.Transactions?.length) {
+				throw new MedusaError(
+					MedusaError.Types.NOT_ALLOWED,
+					"Payment cannot be cancelled"
+				);
+			}
+			return { ...paymentSessionData, ...response };
+		} catch (error) {
+			throw this.buildError("Error cancelling payment", error);
+		}
+	}
 
-  async updatePayment(
-    context: PaymentProcessorContext
-  ): Promise<void | PaymentProcessorError | PaymentProcessorSessionResponse> {
-    console.log("update payment", context);
+	// Delete payment
+	async deletePayment(
+		paymentSessionData: Record<string, unknown>
+	): Promise<
+		PaymentProcessorError | PaymentProcessorSessionResponse["session_data"]
+	> {
+		try {
+			const response = await this.fetchPaymentInfo(paymentSessionData);
+			if (response?.attributes?.Transactions?.length) {
+				throw new MedusaError(
+					MedusaError.Types.NOT_ALLOWED,
+					"Payment cannot be deleted"
+				);
+			}
+			return { ...paymentSessionData, ...response };
+		} catch (error) {
+			throw this.buildError("Error deleting payment", error);
+		}
+	}
 
-    // assuming client is an initialized client
-    // communicating with a third-party service.
-    const paymentId = context.paymentSessionData.id;
-
-    // await this.client.update(paymentId, context);
-
-    return {
-      session_data: context.paymentSessionData,
-    };
-  }
-
-  async updatePaymentData(
-    sessionId: string,
-    data: Record<string, unknown>
-  ): Promise<Record<string, unknown> | PaymentProcessorError> {
-    console.log("update payment", sessionId, data);
-
-    const paymentSession = await this.paymentProviderService.retrieveSession(
-      sessionId
-    );
-    // assuming client is an initialized client
-    // communicating with a third-party service.
-    // const clientPayment = await this.client.update(
-    //   paymentSession.data.id,
-    //   data
-    // );
-
-    return {
-      id: sessionId,
-      // id: clientPayment.id,
-    };
-  }
-
-  // Other Methods
-
-  async createInitiateData(context: PaymentProcessorContext): Promise<any> {
-    // later give appropriate type instead of any here
-    console.debug("initiatePayment called with context:", context);
-    console.log("0");
-
-    try {
-      const { email, amount, currency_code, resource_id } = context;
-      console.log("Extracted context data:", {
-        email,
-        amount,
-        currency_code,
-        resource_id,
-      });
-      console.log("1");
-
-      // const cart = await this.cartService_.retrieve(resource_id, {
-      //   relations: ["items", "billing_address"],
-      // });
-      // console.log("2");
-
-      // console.log("cart in createInitiateData", cart);
-
-      // const body = {
-      //   reference_id: resource_id,
-      //   customer: {
-      //     name: `${cart.billing_address?.first_name} ${cart.billing_address?.last_name}`,
-      //     Street1: cart.billing_address?.address_1 || "",
-      //     Street2: cart.billing_address?.address_2 || "",
-      //     CompanyName: cart?.billing_address?.company || "",
-      //     City: cart.billing_address?.city || "",
-      //     PostalCode: cart.billing_address?.postal_code || "",
-      //     Country: cart.billing_address?.country || "au",
-      //     email: email,
-      //     tax_id:
-      //       cart?.billing_address?.metadata?.cpf
-      //         ?.toString()
-      //         .replace(/[^0-9]/g, "") ?? "12345678909",
-      //   },
-      //   items: [
-      //     {
-      //       reference_id: "item1",
-      //       name: "Order Payment",
-      //       quantity: 1,
-      //       unit_amount: amount,
-      //     },
-      //   ],
-      //   notification_urls: [
-      //     ...(process.env.PAGBANK_HOOK_URL
-      //       ? [`${process.env.PAGBANK_HOOK_URL}/store/payment/pagbank/hook`]
-      //       : []),
-      //   ],
-      // };
-
-      return context;
-    } catch (error) {
-      console.error("Error in initiatePayment:", error);
-      console.dir(error?.response?.data?.error_messages, { depth: null });
-
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, error.message);
-    }
-  }
+	// Refund payment (Method not yet implemented)
+	async refundPayment(
+		paymentSessionData: Record<string, unknown>,
+		refundAmount: number
+	): Promise<
+		PaymentProcessorError | PaymentProcessorSessionResponse["session_data"]
+	> {
+		throw new Error("Method not implemented.");
+	}
 }
+
 export default EWayService;
-
-// import { TransactionBaseService } from "@medusajs/medusa";
-// import rapid from "eway-rapid";
-
-// class EWayProviderService extends TransactionBaseService {
-//   rapidAPI: any;
-//   regionService: any;
-//   totalsService: any;
-//   paymentRepository: any;
-
-//   static identifier = "eway";
-
-//   constructor(container, options) {
-//     super(container, options);
-
-//     this.rapidAPI = rapid.createClient({
-//       apiKey: process.env.API_KEY,
-//       password: process.env.PASSWORD,
-//       endpoint: process.env.ENDPOINT, // Sandbox or Live
-//     });
-
-//     this.regionService = container.resolve("regionService");
-//     this.totalsService = container.resolve("totalsService");
-//     this.paymentRepository = container.resolve("paymentRepository");
-//   }
-
-//   async initiatePayment(cart) {
-//     try {
-//       const totalAmount = await this.totalsService.getTotal(cart);
-
-//       const paymentRequest = {
-//         Payment: {
-//           TotalAmount: totalAmount,
-//         },
-//         RedirectUrl: `${process.env.REDIRECT_URL}/${cart.id}`,
-//         CancelUrl: `${process.env.CANCEL_URL}/${cart.id}`,
-//       };
-
-//       const response = await this.rapidAPI.createTransaction(paymentRequest);
-
-//       if (response.Errors) {
-//         throw new Error(`eWay Error: ${response.Errors}`);
-//       }
-
-//       return {
-//         id: response.TransactionID,
-//         redirectUrl: response.SharedPaymentUrl,
-//       };
-//     } catch (error) {
-//       throw new Error(`Payment initiation failed: ${error.message}`);
-//     }
-//   }
-
-//   async retrievePayment(paymentId) {
-//     try {
-//       const response = await this.rapidAPI.getTransaction(paymentId);
-//       return response;
-//     } catch (error) {
-//       throw new Error(`Error retrieving payment: ${error.message}`);
-//     }
-//   }
-// }
-
-// export default EWayProviderService;
